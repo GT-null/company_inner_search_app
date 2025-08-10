@@ -88,7 +88,7 @@ def display_conversation_log():
                         icon = utils.get_source_icon(message['content']['main_file_path'])
                         # 参照元ドキュメントのページ番号が取得できた場合にのみ、ページ番号を表示
                         if "main_page_number" in message["content"]:
-                            st.success(f"{message['content']['main_file_path']}（{message['content']['main_page_number']}ページ）",icon=icon)   # 高橋追記:ページ番号表示
+                            st.success(f"{message['content']['main_file_path']}（{message['content']['main_page_number']}ページ）",icon=icon)   # 高橋追加:ページ番号表示
                         else:
                             st.success(f"{message['content']['main_file_path']}", icon=icon)
                         
@@ -105,7 +105,7 @@ def display_conversation_log():
                                 icon = utils.get_source_icon(sub_choice['source'])
                                 # 参照元ドキュメントのページ番号が取得できた場合にのみ、ページ番号を表示
                                 if "page_number" in sub_choice:
-                                    st.info(f"{sub_choice['source']}（{sub_choice['page_number']}ページ）", icon=icon)
+                                    st.info(f"{sub_choice['source']}（{sub_choice['page_number']}ページ）", icon=icon)  # 高橋追加:ページ番号表示
                                 else:
                                     st.info(f"{sub_choice['source']}", icon=icon)
                     # ファイルのありかの情報が取得できなかった場合、LLMからの回答のみ表示
@@ -126,10 +126,13 @@ def display_conversation_log():
                         # ドキュメントのありかを一覧表示
                         for file_info in message["content"]["file_info_list"]:
                             # 参照元のありかに応じて、適したアイコンを取得
-                            icon = utils.get_source_icon(file_info)
-                            st.info(file_info, icon=icon)
-
-
+                            ### 高橋追加 ページ番号表示 vvv
+                            icon = utils.get_source_icon(file_info["source"] if isinstance(file_info, dict) else file_info)
+                            if isinstance(file_info, dict) and "page_number" in file_info:
+                                st.info(f"{file_info['source']}（{file_info['page_number']}ページ）", icon=icon)
+                            else:
+                                st.info(file_info["source"] if isinstance(file_info, dict) else file_info, icon=icon)
+                            ### 高橋追加 ページ番号表示 ^^^
 def display_search_llm_response(llm_response):
     """
     「社内文書検索」モードにおけるLLMレスポンスを表示
