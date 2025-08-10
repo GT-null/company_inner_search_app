@@ -218,7 +218,7 @@ def display_search_llm_response(llm_response):
                 # ページ番号が取得できない場合のための分岐処理
                 if "page_number" in sub_choice:
                     # 「サブドキュメントのファイルパス」と「ページ番号」を表示
-                    st.info(f"{sub_choice['source']}", icon=icon)
+                    st.info(f"{sub_choice['source']}（{sub_choice['page_number']}ページ）", icon=icon)  # 高橋追加 ページ番号表示
                 else:
                     # 「サブドキュメントのファイルパス」を表示
                     st.info(f"{sub_choice['source']}", icon=icon)
