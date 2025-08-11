@@ -41,7 +41,9 @@ APP_BOOT_MESSAGE = "アプリが起動されました。"
 # ==========================================
 MODEL = "gpt-4o-mini"
 TEMPERATURE = 0.5
-
+CHUNK_SIZE = 500        #問2回答：initialize.pyのチャンクサイズを変数で定義
+CHUNK_OVERLAP = 50      #問2回答：initialize.pyオーバーラップサイズを変数で定義
+RETRIEVER_TOP_K = 5     #問1,2回答：initialize.pyでRAG検索時に取得するドキュメント数（k値）を定数として定義
 
 # ==========================================
 # RAG参照用のデータソース系
