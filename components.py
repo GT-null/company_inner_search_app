@@ -293,12 +293,12 @@ def display_contact_llm_response(llm_response):
             if file_path in file_path_list:
                 continue
 
-            # ページ番号が取得できた場合のみ、ページ番号を表示（ドキュメントによっては取得できない場合がある）
+            # ページ番号が取得できた場合はページ番号も表示
             if "page" in document.metadata:
                 # ページ番号を取得
                 page_number = document.metadata["page"]
                 # 「ファイルパス」と「ページ番号」
-                file_info = f"{file_path}"
+                file_info = f"{file_path}（{page_number}ページ）"   # 高橋追加 ページ番号表示
             else:
                 # 「ファイルパス」のみ
                 file_info = f"{file_path}"
