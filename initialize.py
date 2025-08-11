@@ -123,8 +123,8 @@ def initialize_retriever():
     
     # チャンク分割用のオブジェクトを作成
     text_splitter = CharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,          # 問２回答 CHUNK_SIZEはconstants.pyに定義されている
-        chunk_overlap=CHUNK_OVERLAP,    # 問２回答 CHUNK_OVERLAPはconstants.pyに定義されている
+        chunk_size=ct.CHUNK_SIZE,          # 問２回答 CHUNK_SIZEはconstants.pyに定義されている
+        chunk_overlap=ct.CHUNK_OVERLAP,    # 問２回答 CHUNK_OVERLAPはconstants.pyに定義されている
         separator="\n"
     )
 
