@@ -1,0 +1,12 @@
+修正内容一覧（2025-08-12）
+
+1. /Users/gt/Projects/company_inner_search_app/initialize.py
+   - k値（Retrieverの検索件数）のマジックナンバー「5」を RETRIEVER_TOP_K 変数（またはct.RETRIEVER_TOP_K定数）に置き換え。
+   - CharacterTextSplitter の chunk_size（500）と chunk_overlap（50）のマジックナンバーを CHUNK_SIZE, CHUNK_OVERLAP 変数に置き換え。
+
+2. /Users/gt/Projects/company_inner_search_app/components.py
+   - 回答モードのラジオボタンをサイドバー（st.sidebar.radio）に表示するよう修正。
+   - サブドキュメントや参照元ファイルのページ番号がある場合、「ファイルパス（○ページ）」の形式で表示するよう修正。
+   - file_info の生成時、ページ番号がある場合は「ファイルパス（○ページ）」の形式で格納するよう修正。
+
+※一部の修正はユーザー操作により元に戻されている可能性があります。
