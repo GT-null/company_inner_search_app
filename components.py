@@ -34,7 +34,7 @@ def display_select_mode():
             options=[ct.ANSWER_MODE_1, ct.ANSWER_MODE_2],
             label_visibility="collapsed"
         )
-
+    
 
 def display_initial_ai_message():
     """
