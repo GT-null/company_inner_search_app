@@ -123,8 +123,8 @@ def initialize_retriever():
     
     # チャンク分割用のオブジェクトを作成
     text_splitter = CharacterTextSplitter(
-        chunk_size=ct.CHUNK_SIZE,          # 問２回答 CHUNK_SIZEはconstants.pyに定義されている
-        chunk_overlap=ct.CHUNK_OVERLAP,    # 問２回答 CHUNK_OVERLAPはconstants.pyに定義されている
+        chunk_size=ct.CHUNK_SIZE,          # 高橋_問2 CHUNK_SIZEはconstants.pyに定義されている
+        chunk_overlap=ct.CHUNK_OVERLAP,    # 高橋_問2 CHUNK_OVERLAPはconstants.pyに定義されている
         separator="\n"
     )
 
@@ -136,7 +136,7 @@ def initialize_retriever():
 
     # ベクターストアを検索するRetrieverの作成
     st.session_state.retriever = db.as_retriever(search_kwargs={"k": ct.RETRIEVER_TOP_K})   
-    #問1, 2回答：RAG検索時に取得するドキュメント数（k値）を定数として定義.定数はconstants.pyに定義されている
+    # 高橋_問1, 2:RAG検索時に取得するドキュメント数（k値）を定数として定義.定数はconstants.pyに定義されている
 
 
 def initialize_session_state():
