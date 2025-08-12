@@ -78,7 +78,7 @@ def display_conversation_log():
 
                         # 参照元のありかに応じて、適したアイコンを取得
                         icon = utils.get_source_icon(message['content']['main_file_path'])
-                        # 参照元ドキュメントのページ番号が取得できた場合にのみ、ページ番号を表示
+                        # 高橋_問題4:参照元ドキュメントのページ番号が取得できた場合にのみ、ページ番号を表示
                         if "main_page_number" in message["content"]:
                             page_num = message['content']['main_page_number']
                             st.success(f"{message['content']['main_file_path']}（{page_num + 1}ページ）",icon=icon)
@@ -96,10 +96,10 @@ def display_conversation_log():
                             for sub_choice in message["content"]["sub_choices"]:
                                 # 参照元のありかに応じて、適したアイコンを取得
                                 icon = utils.get_source_icon(sub_choice['source'])
-                                # 参照元ドキュメントのページ番号が取得できた場合にのみ、ページ番号を表示
+                                # 高橋_問題4:参照元ドキュメントのページ番号が取得できた場合にのみ、ページ番号を表示
                                 if "page_number" in sub_choice:
-                                    page_num = sub_choice['page_number']    #高橋_問題4回答：PDFページ数表示
-                                    st.info(f"{sub_choice['source']}（{page_num + 1}ページ）", icon=icon)   #高橋_問題4回答：PDFページ数表示 1ページ目から始まるように+1
+                                    page_num = sub_choice['page_number']    # 高橋_問題4：PDFページ数表示
+                                    st.info(f"{sub_choice['source']}（{page_num + 1}ページ）", icon=icon)   # 高橋_問題4回答：PDFページ数表示 1ページ目から始まるように+1
                                 else:
                                     st.info(f"{sub_choice['source']}", icon=icon)
                     # ファイルのありかの情報が取得できなかった場合、LLMからの回答のみ表示
@@ -120,13 +120,13 @@ def display_conversation_log():
                         # ドキュメントのありかを一覧表示
                         for file_info in message["content"]["file_info_list"]:
                             # 参照元のありかに応じて、適したアイコンを取得
-                            ### 高橋追加 ページ番号表示 vvv
                             icon = utils.get_source_icon(file_info["source"] if isinstance(file_info, dict) else file_info)
                             if isinstance(file_info, dict) and "page_number" in file_info:
-                                st.info(f"{file_info['source']}（{file_info['page_number']}ページ）", icon=icon)
+                                page_num = file_info['page_number'] ### 高橋_問題4: ページ番号表示 
+                                st.info(f"{file_info['source']}（{page_num + 1}ページ）", icon=icon)    ### 高橋_問題4: ページ数は+1表示 
                             else:
                                 st.info(file_info["source"] if isinstance(file_info, dict) else file_info, icon=icon)
-                            ### 高橋追加 ページ番号表示 ^^^
+
 def display_search_llm_response(llm_response):
     """
     「社内文書検索」モードにおけるLLMレスポンスを表示
@@ -157,7 +157,7 @@ def display_search_llm_response(llm_response):
             # ページ番号を取得
             main_page_number = llm_response["context"][0].metadata["page"]
             # 「メインドキュメントのファイルパス」と「ページ番号」を表示（1ページ目から始まるよう+1）
-            st.success(f"{main_file_path}（{main_page_number + 1}ページ）", icon=icon)  #高橋_問題4回答：PDFページ数表示
+            st.success(f"{main_file_path}（{main_page_number + 1}ページ）", icon=icon)  #高橋_問題4：PDFページ数表示
         else:
             # 「メインドキュメントのファイルパス」を表示
             st.success(f"{main_file_path}", icon=icon)
@@ -212,7 +212,7 @@ def display_search_llm_response(llm_response):
                 # ページ番号が取得できない場合のための分岐処理
                 if "page_number" in sub_choice:
                     page_num = sub_choice['page_number']
-                    st.info(f"{sub_choice['source']}（{page_num + 1}ページ）", icon=icon)  #高橋_問題4回答：PDFページ数表示 1ページ目から始まるように+1
+                    st.info(f"{sub_choice['source']}（{page_num + 1}ページ）", icon=icon)  #高橋_問題4：PDFページ数表示 1ページ目から始まるように+1
                 else:
                     # 「サブドキュメントのファイルパス」を表示
                     st.info(f"{sub_choice['source']}", icon=icon)
@@ -292,7 +292,7 @@ def display_contact_llm_response(llm_response):
                 # ページ番号を取得
                 page_number = document.metadata["page"]
                 # 「ファイルパス」と「ページ番号」（1ページ目から始まるよう+1）
-                file_info = f"{file_path}（{page_number + 1}ページ）"   #高橋_問題4回答：PDFページ数表示 1ページ目から始まるように+1
+                file_info = f"{file_path}（{page_number + 1}ページ）"   #高橋_問題4：PDFページ数表示 1ページ目から始まるように+1
             else:
                 # 「ファイルパス」のみ
                 file_info = f"{file_path}"
