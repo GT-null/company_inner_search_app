@@ -32,7 +32,8 @@ from langchain.schema import Document   # 高橋_問題6
 from langchain.text_splitter import RecursiveCharacterTextSplitter  # 高橋_問題6
 from sudachipy import dictionary as sudachi_dictionary  # 高橋_問題6
 from sudachipy import tokenizer as sudachi_tokenizer  # 高橋_問題6
-
+import pandas as pd     # 高橋_問題6
+import json     # 高橋_問題6
 
 ############################################################
 # 設定関連
@@ -200,15 +201,15 @@ def initialize_retriever() -> None:
         st.session_state.keyword_retriever = bm25_core
         logger.debug("bm25 retriever 構築完了 (k=%d)", bm25_core.k)
 
-        # ハイブリッド（既定: dense=0.8, bm25=0.2）
+        # ハイブリッド
         st.session_state.hybrid_retriever = EnsembleRetriever(
             retrievers=[
                 st.session_state.retriever,
                 st.session_state.keyword_retriever,
             ],
-            weights=[0.8, 0.2],
+            weights=[1-ct.WEIGHTS_BM25, ct.WEIGHTS_BM25],
         )
-        logger.info("ハイブリッド構築完了 (weights: dense=0.80, bm25=0.20)")
+        logger.info("ハイブリッド構築完了")
 
         logger.info("Retriever初期化: 正常終了")
 
@@ -216,77 +217,6 @@ def initialize_retriever() -> None:
         logger.exception("Retriever初期化で例外発生")
         st.error("Retrieverの初期化に失敗しました。ログを確認してください。")
 
-'''
-def initialize_retriever():
-    """
-    画面読み込み時にRAGのRetriever（ベクターストアから検索するオブジェクト）を作成
-    """
-    # ロガーを読み込むことで、後続の処理中に発生したエラーなどがログファイルに記録される
-    logger = logging.getLogger(ct.LOGGER_NAME)
-
-    # すでにRetrieverが作成済みの場合、後続の処理を中断
-    if "retriever" in st.session_state:
-        return
-    
-    # RAGの参照先となるデータソースの読み込み
-    docs_all = load_data_sources()
-
-    # OSがWindowsの場合、Unicode正規化と、cp932（Windows用の文字コード）で表現できない文字を除去
-    for doc in docs_all:
-        doc.page_content = adjust_string(doc.page_content)
-        for key in doc.metadata:
-            doc.metadata[key] = adjust_string(doc.metadata[key])
-    
-    # 埋め込みモデルの用意
-    embeddings = OpenAIEmbeddings()
-    
-    # チャンク分割用のオブジェクトを作成
-    text_splitter = CharacterTextSplitter(
-        chunk_size=ct.CHUNK_SIZE,          # 高橋_問2 CHUNK_SIZEはconstants.pyに定義されている
-        chunk_overlap=ct.CHUNK_OVERLAP,    # 高橋_問2 CHUNK_OVERLAPはconstants.pyに定義されている
-        separator="\n"
-    )
-
-    # チャンク分割を実施
-    splitted_docs = text_splitter.split_documents(docs_all)
-
-    # ベクターストアの作成
-    db = Chroma.from_documents(splitted_docs, embedding=embeddings)
-
-    # ベクターストアを検索するRetrieverの作成
-    st.session_state.retriever = db.as_retriever(search_kwargs={"k": ct.RETRIEVER_TOP_K})   
-    # 高橋_問1, 2:RAG検索時に取得するドキュメント数（k値）を定数として定義.定数はconstants.pyに定義されている
-
-    # 高橋_問題6:キーワード検索用のretrieverを作成
-    # 検索対象のドキュメントの内容を、形態素解析を用いて単語化
-    def preprocess_func(text):
-        tokenizer_obj = dictionary.Dictionary(dict="full").create()
-        mode = tokenizer.Tokenizer.SplitMode.A
-        tokens = tokenizer_obj.tokenize(text ,mode)
-        words = [token.surface() for token in tokens]
-        words = list(set(words))
-        return words
-
-    docs_for_keyword_search = []
-    for doc in splitted_docs:
-        docs_for_keyword_search.append(doc.page_content)
-
-    # 形態素解析を用いて単語化したドキュメントを、キーワード検索用のリストに格納しキーワード検索用のretrieverを作成
-    st.session_state.keyword_retriever = BM25Retriever.from_texts(
-        docs_for_keyword_search,
-        preprocess_func=preprocess_func,
-        k=ct.RETRIEVER_TOP_K  # 高橋_問題6:キーワード検索時に取得するドキュメント数（k値）を定数として定義
-    )
-
-    # ハイブリッド検索用のRetrieverを作成
-    st.session_state.hybrid_retriever = EnsembleRetriever(
-        retrievers=[
-            st.session_state.retriever,
-            st.session_state.keyword_retriever
-        ],
-        weights=[1-ct.WEIGHTS_BM25, ct.WEIGHTS_BM25]
-    )
-'''
 
 def initialize_session_state():
     """
@@ -306,8 +236,12 @@ def load_data_sources():
     Returns:
         読み込んだ通常データソース
     """
-    # csvファイルをtxtファイルに変換    
-    csv_to_txt()        # 高橋_問題6
+    # csvファイルをtxtファイルに変換
+    # 入力/出力のCSVのパス
+    csv_path = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.csv")  # 高橋_問題6
+    out_path = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.txt")  # 高橋_問題6
+    convert_csv_to_jsonl_txt(csv_path, out_path, important_cols=None, primary_key="社員ID")
+
     # データソースを格納する用のリスト
     docs_all = []
     # ファイル読み込みの実行（渡した各リストにデータが格納される）
@@ -396,13 +330,96 @@ def adjust_string(s):
     return s
 
 
-def csv_to_txt():
-    # 入力CSVのパス
-    input_csv = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.csv")  # 高橋_問題6
+def convert_csv_to_jsonl_txt(csv_path, out_path, important_cols=None, primary_key="社員ID"):
+    """
+    CSVを1つの.txt(JSONL)に変換:
+      - Row-as-Doc: 1行→1 JSON {"doc_type":"row","doc_id":row_id,"row_id":row_id,"text":"キー:値 | ..."}
+      - Cell-as-Doc: 重要列の各セル→1 JSON {"doc_type":"cell","doc_id":"row_id#列","row_id":row_id,"col":列,"raw":値,"text":"列: 値"}
+    条件:
+      - 1行目はヘッダ（キー）
+      - 主キーは「社員ID」
+      - 重要列: ["性別","従業員区分","部署","役職","大学名","学部・学科"]
+    """
+    if important_cols is None:
+        important_cols = ["性別","従業員区分","部署","役職","大学名","学部・学科"]
 
-    # 出力TXTのパス（同じディレクトリに配置）
-    output_txt = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.txt")  # 高橋_問題6
+    # 日本語CSVの読み込みに強い簡易フォールバック
+    last_err = None
+    for enc in ["utf-8-sig", "utf-8", "cp932"]:
+        try:
+            df = pd.read_csv(csv_path, encoding=enc)
+            break
+        except Exception as e:
+            last_err = e
+            df = None
+    if df is None:
+        raise RuntimeError(f"CSV読み込み失敗: {csv_path}. 最後のエラー: {last_err}")
 
+    # 主キー確認
+    if primary_key not in df.columns:
+        raise KeyError(f"主キー列 '{primary_key}' が見つかりません。CSVに '{primary_key}' 列を追加してください。")
+
+    existing_cols = [c for c in important_cols if c in df.columns]
+    missing_cols = [c for c in important_cols if c not in df.columns]
+
+    # 出力
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as out:
+        # ---- Row-as-Doc ----
+        for _, row in df.iterrows():
+            row_id = str(row[primary_key])
+            kv_parts = []
+            for col in df.columns:
+                val = row[col]
+                if pd.isna(val) or str(val).strip() == "":
+                    continue
+                kv_parts.append(f"{col}: {str(val).strip()}")
+            text = " | ".join(kv_parts)
+            obj = {
+                "doc_type": "row",
+                "doc_id": row_id,
+                "row_id": row_id,
+                "text": text,
+                "table": os.path.basename(csv_path),
+            }
+            out.write(json.dumps(obj, ensure_ascii=False) + "\n")
+
+        # ---- Cell-as-Doc ----
+        for _, row in df.iterrows():
+            row_id = str(row[primary_key])
+            for col in existing_cols:
+                val = row[col]
+                if pd.isna(val):
+                    continue
+                raw = str(val).strip()
+                if raw == "":
+                    continue
+                obj = {
+                    "doc_type": "cell",
+                    "doc_id": f"{row_id}#{col}",
+                    "row_id": row_id,
+                    "col": col,
+                    "raw": raw,
+                    "text": f"{col}: {raw}",
+                    "table": os.path.basename(csv_path),
+                }
+                out.write(json.dumps(obj, ensure_ascii=False) + "\n")
+
+    return {
+        "out_path": out_path,
+        "rows": len(df),
+        "cell_cols_used": existing_cols,
+        "cell_cols_missing": missing_cols,
+    }
+
+# 使い方例
+# result = convert_csv_to_jsonl_txt("社員名簿.csv", "社員名簿_docs.txt")
+# print(result)
+
+
+
+
+'''
     # CSVファイルを読み込み、TXTファイルに書き出す 高橋_問題6
     with open(input_csv, "r", encoding="utf-8-sig", newline="") as f_in, \
          open(output_txt, "w", encoding="utf-8", newline="\n") as f_out:
@@ -412,3 +429,4 @@ def csv_to_txt():
             row = (row + [""] * (len(headers) - len(row)))[:len(headers)]  # 欠損を空文字で補完
             line = " , ".join(f" {h}:{v}" for h, v in zip(headers, row))
             f_out.write(line + "\n")
+'''
