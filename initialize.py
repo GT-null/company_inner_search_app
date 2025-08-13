@@ -19,6 +19,8 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 import constants as ct
+import csv      # 高橋_問題6
+from pathlib import Path      # 高橋_問題6
 
 
 ############################################################
@@ -157,6 +159,8 @@ def load_data_sources():
     Returns:
         読み込んだ通常データソース
     """
+    # csvファイルをtxtファイルに変換    
+    csv_to_txt()        # 高橋_問題6
     # データソースを格納する用のリスト
     docs_all = []
     # ファイル読み込みの実行（渡した各リストにデータが格納される）
@@ -243,3 +247,31 @@ def adjust_string(s):
     
     # OSがWindows以外の場合はそのまま返す
     return s
+
+
+def csv_to_txt():
+    # 入力CSVのパス
+    input_csv = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.csv")  # 高橋_問題6
+
+    # 出力TXTのパス（同じディレクトリに配置）
+    output_txt = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.txt")  # 高橋_問題6
+
+    # CSVの文字コード（UTF-8 BOM付き対応）
+    encoding = "utf-8-sig"
+
+    # CSVを読み込み
+    with open(input_csv, "r", encoding=encoding, newline="") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    # ヘッダーとデータに分ける
+    headers = rows[0]
+    data_rows = rows[1:]
+
+    # TXTにMarkdown形式で書き込み
+    with open(output_txt, "w", encoding="utf-8") as out:
+        for row in data_rows:
+            for i, header in enumerate(headers):
+                out.write(f"{header}: {row[i]}\n")
+            out.write("\n")  # レコード間に空行
+
