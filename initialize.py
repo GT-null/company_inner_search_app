@@ -256,22 +256,12 @@ def csv_to_txt():
     # 出力TXTのパス（同じディレクトリに配置）
     output_txt = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.txt")  # 高橋_問題6
 
-    # CSVの文字コード（UTF-8 BOM付き対応）
-    encoding = "utf-8-sig"
-
-    # CSVを読み込み
-    with open(input_csv, "r", encoding=encoding, newline="") as f:
-        reader = csv.reader(f)
-        rows = list(reader)
-
-    # ヘッダーとデータに分ける
-    headers = rows[0]
-    data_rows = rows[1:]
-
-    # TXTにMarkdown形式で書き込み
-    with open(output_txt, "w", encoding="utf-8") as out:
-        for row in data_rows:
-            for i, header in enumerate(headers):
-                out.write(f"{header}: {row[i]}\n")
-            out.write("\n")  # レコード間に空行
-
+    # CSVファイルを読み込み、TXTファイルに書き出す 高橋_問題6
+    with open(input_csv, "r", encoding="utf-8-sig", newline="") as f_in, \
+         open(output_txt, "w", encoding="utf-8", newline="\n") as f_out:
+        reader = csv.reader(f_in)
+        headers = next(reader)  # 1行目＝主キー（見出し）
+        for row in reader:      # 2行目以降
+            row = (row + [""] * (len(headers) - len(row)))[:len(headers)]  # 欠損を空文字で補完
+            line = " , ".join(f" {h}:{v}" for h, v in zip(headers, row))
+            f_out.write(line + "\n")
