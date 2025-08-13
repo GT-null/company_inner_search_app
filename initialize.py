@@ -17,7 +17,7 @@ from docx import Document
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 import constants as ct
 import platform    # 高橋_問題6
 import csv      # 高橋_問題6
@@ -35,6 +35,8 @@ from sudachipy import tokenizer as sudachi_tokenizer  # 高橋_問題6
 import pandas as pd     # 高橋_問題6
 import json     # 高橋_問題6
 from datetime import datetime       # 高橋_問題6
+from langchain_cohere import CohereRerank   # 高橋_問題6
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever  # 高橋_問題6
 
 ############################################################
 # 設定関連
@@ -185,9 +187,9 @@ def initialize_retriever() -> None:
         db = Chroma.from_documents(splitted_docs, embedding=embeddings)
 
         st.session_state.retriever = db.as_retriever(
-            search_kwargs={"k": ct.RETRIEVER_TOP_K}
+            search_kwargs={"k": ct.RETRIEVER_K}
         )
-        logger.debug("dense retriever 構築完了 (k=%d)", ct.RETRIEVER_TOP_K)
+        logger.debug("dense retriever 構築完了 (k=%d)", ct.RETRIEVER_K)
 
         # BM25（日本語前処理）
         preprocess_func = _build_bm25_preprocess()
@@ -198,7 +200,7 @@ def initialize_retriever() -> None:
                     metadatas=metas,
                     preprocess_func=preprocess_func,
         )
-        bm25_core.k = ct.RETRIEVER_TOP_K
+        bm25_core.k = ct.BM25_K
         st.session_state.keyword_retriever = bm25_core
         logger.debug("bm25 retriever 構築完了 (k=%d)", bm25_core.k)
 
@@ -210,6 +212,17 @@ def initialize_retriever() -> None:
             ],
             weights=[1-ct.WEIGHTS_BM25, ct.WEIGHTS_BM25],
         )
+
+        compressor = CohereRerank(
+            model="rerank-multilingual-v3.0",   # ← 多言語向け
+            top_n=ct.RETRIEVER_TOP_K,           # 最終採択
+        )
+
+        st.session_state.ccr = ContextualCompressionRetriever(
+            base_retriever=st.session_state.hybrid_retriever,
+            base_compressor=compressor,
+        )
+
         logger.info("ハイブリッド構築完了")
 
         logger.info("Retriever初期化: 正常終了")

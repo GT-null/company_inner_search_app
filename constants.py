@@ -40,12 +40,13 @@ APP_BOOT_MESSAGE = "アプリが起動されました。"
 # LLM設定系
 # ==========================================
 MODEL = "gpt-4o-mini"  # "gpt-4o-mini""gpt-3.5-turbo"
-TEMPERATURE = 0.2
-CHUNK_SIZE = 500       # 高橋_問2：initialize.pyのチャンクサイズを変数で定義
-CHUNK_OVERLAP = 50      # 高橋_問2：initialize.pyオーバーラップサイズを変数で定義
+TEMPERATURE = 0.3
+CHUNK_SIZE = 600       # 高橋_問2：initialize.pyのチャンクサイズを変数で定義
+CHUNK_OVERLAP = 60      # 高橋_問2：initialize.pyオーバーラップサイズを変数で定義
 RETRIEVER_TOP_K = 5     # 高橋_問1,2：initialize.pyでRAG検索時に取得するドキュメント数（k値）を定数として定義
 WEIGHTS_BM25 = 0.5       # 高橋_問題6:ハイブリッド検索用のBM25Retrieverの重み(0.0 ~ 1.0)
-
+RETRIEVER_K = 30        # 高橋_問題6:ベクター検索用のRetrieverのk値
+BM25_K = 30     # 高橋_問題6:キーワード検索用のBM25Retrieverのk値
 
 # ==========================================
 # RAG参照用のデータソース系
