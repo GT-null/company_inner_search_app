@@ -19,15 +19,20 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 import constants as ct
+import platform    # 高橋_問題6
 import csv      # 高橋_問題6
 from pathlib import Path      # 高橋_問題6
 import rank_bm25        # 高橋_問題6
 import sudachipy        # 高橋_問題6
 import sudachidict_full        # 高橋_問題6 
 from typing import List     # 高橋_問題6
-from sudachipy import tokenizer, dictionary     # 高橋_問題6
 from langchain_community.retrievers import BM25Retriever    # 高橋_問題6
 from langchain.retrievers import EnsembleRetriever  # 高橋_問題6
+from langchain.schema import Document   # 高橋_問題6
+from langchain.text_splitter import RecursiveCharacterTextSplitter  # 高橋_問題6
+from sudachipy import dictionary as sudachi_dictionary  # 高橋_問題6
+from sudachipy import tokenizer as sudachi_tokenizer  # 高橋_問題6
+
 
 ############################################################
 # 設定関連
@@ -105,7 +110,113 @@ def initialize_session_id():
         # ランダムな文字列（セッションID）を、ログ出力用に作成
         st.session_state.session_id = uuid4().hex
 
+### 高橋_問題6: Windows環境でRAGが正常動作するよう調整
+def _normalize_docs_for_windows(docs: List[Document]) -> None:
+    """Windows のときだけ page_content と metadata(str) を正規化する。破壊的変更。"""
+    for doc in docs:
+        doc.page_content = adjust_string(doc.page_content)
+        if isinstance(doc.metadata, dict):
+            for k, v in list(doc.metadata.items()):
+                if isinstance(v, str):
+                    doc.metadata[k] = adjust_string(v)
 
+### 高橋_問題6: 日本語テキスト向けに再結合品質を意識したスプリッタを作成
+def _build_text_splitter() -> RecursiveCharacterTextSplitter:
+    """日本語テキスト向けに再結合品質を意識したスプリッタ。"""
+    return RecursiveCharacterTextSplitter(
+        chunk_size=ct.CHUNK_SIZE,
+        chunk_overlap=ct.CHUNK_OVERLAP,
+        separators=["\n\n", "\n", "。", "、", " "]
+)
+
+### 高橋_問題6: Sudachi のトークナイザを 1 インスタンスだけ生成してクロージャで使い回す
+def _build_bm25_preprocess():
+    """Sudachi のトークナイザを 1 インスタンスだけ生成してクロージャで使い回す。"""
+    sudachi = sudachi_dictionary.Dictionary(dict="full").create()
+    # C は粗い分割で固有名詞を壊しにくい。用途に応じて A/B/C を調整。
+    split_mode = sudachi_tokenizer.Tokenizer.SplitMode.C
+
+    def preprocess_func(text: str):
+        tokens = sudachi.tokenize(text, split_mode)
+        # 重要: TF（頻度）を維持するため set() などで重複除去しない
+        return [t.surface() for t in tokens if t.surface().strip()]
+
+    return preprocess_func
+
+def initialize_retriever() -> None:
+    """
+    日本語ドキュメント向けに最適化した Retriever 群を初期化し、Streamlit の session_state に格納する。
+
+    作成される session_state のキー:
+      - retriever: ベクター検索（Chroma + OpenAIEmbeddings）
+      - keyword_retriever: BM25（Sudachi 形態素解析）
+      - hybrid_retriever: EnsembleRetriever（dense/bm25 のハイブリッド）
+    """
+    logger = logging.getLogger(ct.LOGGER_NAME)
+
+    try:
+        logger.info("Retriever初期化: 開始")
+
+        # 3つすべて揃っていれば何もしない
+        needed = {"retriever", "keyword_retriever", "hybrid_retriever"}
+        if needed.issubset(st.session_state):
+            logger.info("Retriever初期化: 既存のsession_stateを再利用してスキップ")
+            return
+
+        # データ読み込み
+        logger.debug("データソース読み込み中...")
+        docs_all: List[Document] = load_data_sources()
+        logger.info("読み込みドキュメント数: %d", len(docs_all))
+
+        # Windowsのみ正規化
+        if platform.system() == "Windows":
+            logger.debug("Windows検出: 文字列正規化を実施")
+            _normalize_docs_for_windows(docs_all)
+
+        # チャンク分割
+        splitter = _build_text_splitter()
+        splitted_docs = splitter.split_documents(docs_all)
+        logger.info("チャンク数: %d", len(splitted_docs))
+
+        # 埋め込み & ベクターストア（要求通り: OpenAIEmbeddings() そのまま / Chromaはメモリのみ）
+        embeddings = OpenAIEmbeddings()
+        db = Chroma.from_documents(splitted_docs, embedding=embeddings)
+
+        st.session_state.retriever = db.as_retriever(
+            search_kwargs={"k": ct.RETRIEVER_TOP_K}
+        )
+        logger.debug("dense retriever 構築完了 (k=%d)", ct.RETRIEVER_TOP_K)
+
+        # BM25（日本語前処理）
+        preprocess_func = _build_bm25_preprocess()
+        texts = [d.page_content for d in splitted_docs]
+        metas = [d.metadata for d in splitted_docs]
+        bm25_core = BM25Retriever.from_texts(
+                    texts=texts,
+                    metadatas=metas,
+                    preprocess_func=preprocess_func,
+        )
+        bm25_core.k = ct.RETRIEVER_TOP_K
+        st.session_state.keyword_retriever = bm25_core
+        logger.debug("bm25 retriever 構築完了 (k=%d)", bm25_core.k)
+
+        # ハイブリッド（既定: dense=0.8, bm25=0.2）
+        st.session_state.hybrid_retriever = EnsembleRetriever(
+            retrievers=[
+                st.session_state.retriever,
+                st.session_state.keyword_retriever,
+            ],
+            weights=[0.8, 0.2],
+        )
+        logger.info("ハイブリッド構築完了 (weights: dense=0.80, bm25=0.20)")
+
+        logger.info("Retriever初期化: 正常終了")
+
+    except Exception:
+        logger.exception("Retriever初期化で例外発生")
+        st.error("Retrieverの初期化に失敗しました。ログを確認してください。")
+
+'''
 def initialize_retriever():
     """
     画面読み込み時にRAGのRetriever（ベクターストアから検索するオブジェクト）を作成
@@ -175,7 +286,7 @@ def initialize_retriever():
         ],
         weights=[1-ct.WEIGHTS_BM25, ct.WEIGHTS_BM25]
     )
-
+'''
 
 def initialize_session_state():
     """
