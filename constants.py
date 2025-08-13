@@ -44,6 +44,7 @@ TEMPERATURE = 0.5
 CHUNK_SIZE = 500        # 高橋_問2：initialize.pyのチャンクサイズを変数で定義
 CHUNK_OVERLAP = 50      # 高橋_問2：initialize.pyオーバーラップサイズを変数で定義
 RETRIEVER_TOP_K = 5     # 高橋_問1,2：initialize.pyでRAG検索時に取得するドキュメント数（k値）を定数として定義
+WEIGHTS_BM25 = 0.5       # 高橋_問題6:ハイブリッド検索用のBM25Retrieverの重み(0.0 ~ 1.0)
 
 
 # ==========================================

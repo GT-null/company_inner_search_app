@@ -27,6 +27,7 @@ import sudachidict_full        # 高橋_問題6
 from typing import List     # 高橋_問題6
 from sudachipy import tokenizer, dictionary     # 高橋_問題6
 from langchain_community.retrievers import BM25Retriever    # 高橋_問題6
+from langchain.retrievers import EnsembleRetriever  # 高橋_問題6
 
 ############################################################
 # 設定関連
@@ -159,11 +160,20 @@ def initialize_retriever():
     for doc in splitted_docs:
         docs_for_keyword_search.append(doc.page_content)
 
-    # 形態素解析を用いて単語化したドキュメントを、キーワード検索用のリストに格納
+    # 形態素解析を用いて単語化したドキュメントを、キーワード検索用のリストに格納しキーワード検索用のretrieverを作成
     st.session_state.keyword_retriever = BM25Retriever.from_texts(
         docs_for_keyword_search,
         preprocess_func=preprocess_func,
         k=ct.RETRIEVER_TOP_K  # 高橋_問題6:キーワード検索時に取得するドキュメント数（k値）を定数として定義
+    )
+
+    # ハイブリッド検索用のRetrieverを作成
+    st.session_state.hybrid_retriever = EnsembleRetriever(
+        retrievers=[
+            st.session_state.retriever,
+            st.session_state.keyword_retriever
+        ],
+        weights=[1-ct.WEIGHTS_BM25, ct.WEIGHTS_BM25]
     )
 
 

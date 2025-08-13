@@ -100,8 +100,8 @@ def get_llm_response(chat_message):
 
     # 会話履歴なしでもLLMに理解してもらえる、独立した入力テキストを取得するためのRetrieverを作成
     history_aware_retriever = create_history_aware_retriever(
-        llm, st.session_state.retriever, question_generator_prompt
-    )
+        llm, st.session_state.hybrid_retriever, question_generator_prompt
+    )       # 高橋_問題6: ハイブリッド検索用のRetrieverを使用
 
     # LLMから回答を取得する用のChainを作成
     question_answer_chain = create_stuff_documents_chain(llm, question_answer_prompt)
