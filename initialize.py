@@ -240,7 +240,7 @@ def load_data_sources():
     # 入力/出力のCSVのパス
     csv_path = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.csv")  # 高橋_問題6
     out_path = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.txt")  # 高橋_問題6
-    convert_csv_to_jsonl_txt(csv_path, out_path, important_cols=None, primary_key="社員ID")
+    csv_to_row_cell_txt_with_name_fix(csv_path, out_path)
 
     # データソースを格納する用のリスト
     docs_all = []
@@ -330,6 +330,88 @@ def adjust_string(s):
     return s
 
 
+# 高橋_問題6
+def csv_to_row_cell_txt_with_name_fix(
+    csv_path: str,
+    out_path: str,
+    primary_key: str = "社員ID",
+    name_cols=("氏名", "氏名（フルネーム）", "フルネーム", "名前"),
+    cell_cols=("性別","従業員区分","部署","役職","大学名","学部・学科")
+):
+    """
+    仕様:
+      1) 氏名（フルネーム）列の「姓」と「名」の間の空白（半角/全角/タブ等）を除去
+      2) Row-as-Doc と Cell-as-Doc を1つの.txtにまとめて出力
+         - Row-as-Doc: 2行目以降の各行を「キー: 値」を ' | ' で連結 → 1行出力 → 改行
+         - Cell-as-Doc: 主キー(社員ID) + 指定6列の各セル → 1行出力 → 改行
+         - 出力順序: Row-as-Doc 全行 → 空行1つ → Cell-as-Doc 全セル
+    """
+    # エンコードのフォールバック
+    last_err = None
+    for enc in ("utf-8-sig", "utf-8", "cp932"):
+        try:
+            df = pd.read_csv(csv_path, encoding=enc)
+            break
+        except Exception as e:
+            last_err = e
+            df = None
+    if df is None:
+        raise RuntimeError(f"CSV読み込みに失敗: {csv_path}. 最後のエラー: {last_err}")
+
+    # 主キー確認
+    if primary_key not in df.columns:
+        raise KeyError(f"主キー列 '{primary_key}' が見つかりません。CSVに '{primary_key}' 列を追加してください。")
+
+    # 氏名列の空白除去（最初に見つかった候補列のみ）
+    for col in name_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace(r"[ \t\u3000]+", "", regex=True)  # 半角/全角空白・タブの連続を除去
+            break
+
+    # Cell-as-Doc 対象の実在列のみ使用
+    existing_cols = [c for c in cell_cols if c in df.columns]
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        # Row-as-Doc
+        for _, row in df.iterrows():
+            parts = []
+            for col in df.columns:
+                val = row[col]
+                if pd.isna(val):
+                    continue
+                sval = str(val).strip()
+                if not sval:
+                    continue
+                parts.append(f"{col}: {sval}")
+            if parts:
+                f.write(" | ".join(parts) + "\n")
+
+        # 空行で区切り
+        f.write("\n")
+
+        # Cell-as-Doc
+        for _, row in df.iterrows():
+            rid = row[primary_key]
+            if pd.isna(rid):
+                continue
+            rid = str(rid).strip()
+            if not rid:
+                continue
+            for col in existing_cols:
+                val = row[col]
+                if pd.isna(val):
+                    continue
+                sval = str(val).strip()
+                if not sval:
+                    continue
+                f.write(f"{primary_key}: {rid} | {col}: {sval}\n")
+
+# 使い方例:
+# csv_to_row_cell_txt_with_name_fix("社員名簿.csv", "社員名簿_row_and_cell_namefixed.txt")
+
+
+'''
 def convert_csv_to_jsonl_txt(csv_path, out_path, important_cols=None, primary_key="社員ID"):
     """
     CSVを1つの.txt(JSONL)に変換:
@@ -415,7 +497,7 @@ def convert_csv_to_jsonl_txt(csv_path, out_path, important_cols=None, primary_ke
 # 使い方例
 # result = convert_csv_to_jsonl_txt("社員名簿.csv", "社員名簿_docs.txt")
 # print(result)
-
+'''
 
 
 
