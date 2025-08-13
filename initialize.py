@@ -21,7 +21,12 @@ from langchain_community.vectorstores import Chroma
 import constants as ct
 import csv      # 高橋_問題6
 from pathlib import Path      # 高橋_問題6
-
+import rank_bm25        # 高橋_問題6
+import sudachipy        # 高橋_問題6
+import sudachidict_full        # 高橋_問題6 
+from typing import List     # 高橋_問題6
+from sudachipy import tokenizer, dictionary     # 高橋_問題6
+from langchain_community.retrievers import BM25Retriever    # 高橋_問題6
 
 ############################################################
 # 設定関連
@@ -139,6 +144,27 @@ def initialize_retriever():
     # ベクターストアを検索するRetrieverの作成
     st.session_state.retriever = db.as_retriever(search_kwargs={"k": ct.RETRIEVER_TOP_K})   
     # 高橋_問1, 2:RAG検索時に取得するドキュメント数（k値）を定数として定義.定数はconstants.pyに定義されている
+
+    # 高橋_問題6:キーワード検索用のretrieverを作成
+    # 検索対象のドキュメントの内容を、形態素解析を用いて単語化
+    def preprocess_func(text):
+        tokenizer_obj = dictionary.Dictionary(dict="full").create()
+        mode = tokenizer.Tokenizer.SplitMode.A
+        tokens = tokenizer_obj.tokenize(text ,mode)
+        words = [token.surface() for token in tokens]
+        words = list(set(words))
+        return words
+
+    docs_for_keyword_search = []
+    for doc in splitted_docs:
+        docs_for_keyword_search.append(doc.page_content)
+
+    # 形態素解析を用いて単語化したドキュメントを、キーワード検索用のリストに格納
+    st.session_state.keyword_retriever = BM25Retriever.from_texts(
+        docs_for_keyword_search,
+        preprocess_func=preprocess_func,
+        k=ct.RETRIEVER_TOP_K  # 高橋_問題6:キーワード検索時に取得するドキュメント数（k値）を定数として定義
+    )
 
 
 def initialize_session_state():
