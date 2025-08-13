@@ -241,7 +241,7 @@ def load_data_sources():
     # 入力/出力のCSVのパス
     csv_path = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.csv")  # 高橋_問題6
     out_path = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.txt")  # 高橋_問題6
-    csv_to_single_jsonl_txt_with_name_fix(csv_path, out_path)
+    csv_to_single_row_jsonl_document(csv_path, out_path)
 
     # データソースを格納する用のリスト
     docs_all = []
@@ -332,6 +332,119 @@ def adjust_string(s):
 
 
 # 高橋_問題6
+def csv_to_single_row_jsonl_document(
+    csv_path: str,
+    out_path: str,
+    primary_key: str = "社員ID",
+    # 氏名列の候補（最初に見つかった列を処理）
+    name_cols=("氏名（フルネーム）","氏名","フルネーム","名前"),
+    # 「各行JSONの連結」に使う区切り（改行は使わない）
+    row_json_delim=" || ",
+    # 「キー:値の短い自然文」構成
+    kv_sep=" | ",   # 複数キー:値ペアの連結
+    kv_mid=": "     # キーと値の間
+):
+    """
+    要件:
+      - CSVの1行目はヘッダ。
+      - 氏名（フルネーム）列は姓と名の間の空白（半角/全角/タブ）を除去。
+      - 各データ行を「キー:値の短い自然文」に整形し、行ごとにJSON化。
+      - それら"行JSON"を改行なしで連結し、ファイル全体で JSONL 1行 (= 単一ドキュメント) にまとめる。
+        例: {"doc_type":"row_jsonl_corpus","text":"{行1のJSON} || {行2のJSON} || ...", "metadata":{...}}
+
+    出力:
+      out_path に JSONL を 1 行だけ書き出す（本文 text 内には改行を含めない）。
+    """
+    # --- CSV読み込み（エンコードのフォールバック） ---
+    last_err = None
+    for enc in ("utf-8-sig", "utf-8", "cp932"):
+        try:
+            df = pd.read_csv(csv_path, encoding=enc)
+            break
+        except Exception as e:
+            last_err = e
+            df = None
+    if df is None:
+        raise RuntimeError(f"CSV読み込みに失敗: {csv_path}. 最後のエラー: {last_err}")
+
+    # --- 氏名（フルネーム）の空白除去 ---
+    name_col_used = None
+    for col in name_cols:
+        if col in df.columns:
+            name_col_used = col
+            # 半角/全角スペース・タブ等の連続を除去
+            df[col] = df[col].astype(str).str.replace(r"[ \t\u3000]+", "", regex=True)
+            break
+
+    # --- 値の整形（改行を潰し、前後空白を除去） ---
+    def clean_val(v):
+        if pd.isna(v):
+            return ""
+        return str(v).replace("\r", " ").replace("\n", " ").strip()
+
+    columns = df.columns.tolist()
+    primary_key_present = primary_key in columns
+
+    # --- 各行→「キー:値」の短い自然文 → 行JSON 文字列 ---
+    row_json_strings = []
+    for _, row in df.iterrows():
+        # 「キー:値 | キー:値 | ...」
+        parts = []
+        for col in columns:
+            val = clean_val(row[col])
+            if not val:
+                continue
+            parts.append(f"{col}{kv_mid}{val}")
+        if not parts:
+            continue
+        text_line = kv_sep.join(parts)
+
+        # 行メタデータ（row_id があれば付与）
+        row_meta = {}
+        if primary_key_present:
+            rid = clean_val(row[primary_key])
+            if rid:
+                row_meta["row_id"] = rid
+
+        row_obj = {
+            "doc_type": "row",
+            "source": os.path.basename(csv_path),
+            "text": text_line,
+            "metadata": row_meta
+        }
+        # コンパクトなJSON表記にして短く（改行・余分な空白なし）
+        row_json_strings.append(json.dumps(row_obj, ensure_ascii=False, separators=(",", ":")))
+
+    # --- 改行を使わずに "行JSON" を連結 ---
+    big_text = row_json_delim.join(row_json_strings)
+
+    # --- 単一ドキュメント（JSONL 1行） ---
+    corpus_doc = {
+        "doc_type": "row_jsonl_corpus",
+        "source": os.path.basename(csv_path),
+        "text": big_text,  # ← ここに行JSONが改行なしで連結されて入る
+        "metadata": {
+            "row_count": len(row_json_strings),
+            "columns": columns,
+            "primary_key": primary_key if primary_key_present else None,
+            "name_col_used": name_col_used,
+            "row_json_delim": row_json_delim,
+            "generated_at": datetime.utcnow().isoformat() + "Z"
+        }
+    }
+
+    # --- 書き出し（JSONL 1行） ---
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(corpus_doc, ensure_ascii=False))
+        f.write("\n")  # JSONLとしての1行末尾の改行（本文 text 内には改行なし）
+
+    return out_path
+
+# 使い方例:
+# csv_to_single_row_jsonl_document("社員名簿.csv", "社員名簿_row_jsonl_corpus.txt")
+
+'''
 def csv_to_single_jsonl_txt_with_name_fix(
     csv_path: str,
     out_path: str,
@@ -424,7 +537,7 @@ def csv_to_single_jsonl_txt_with_name_fix(
 
 # 使い方例:
 # csv_to_single_jsonl_txt_with_name_fix("社員名簿.csv", "社員名簿_row_corpus_single.jsonl.txt")
-
+'''
 
 '''
 def csv_to_row_cell_txt_with_name_fix(
