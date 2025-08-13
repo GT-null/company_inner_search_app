@@ -34,6 +34,7 @@ from sudachipy import dictionary as sudachi_dictionary  # 高橋_問題6
 from sudachipy import tokenizer as sudachi_tokenizer  # 高橋_問題6
 import pandas as pd     # 高橋_問題6
 import json     # 高橋_問題6
+from datetime import datetime       # 高橋_問題6
 
 ############################################################
 # 設定関連
@@ -240,7 +241,7 @@ def load_data_sources():
     # 入力/出力のCSVのパス
     csv_path = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.csv")  # 高橋_問題6
     out_path = os.path.join(ct.RAG_TOP_FOLDER_PATH, "社員について/社員名簿.txt")  # 高橋_問題6
-    csv_to_row_cell_txt_with_name_fix(csv_path, out_path)
+    csv_to_single_jsonl_txt_with_name_fix(csv_path, out_path)
 
     # データソースを格納する用のリスト
     docs_all = []
@@ -331,6 +332,101 @@ def adjust_string(s):
 
 
 # 高橋_問題6
+def csv_to_single_jsonl_txt_with_name_fix(
+    csv_path: str,
+    out_path: str,
+    primary_key: str = "社員ID",
+    name_cols=("氏名（フルネーム）","氏名","フルネーム","名前"),
+    row_sep=" || ",   # 改行禁止なので行間の視認性用セパレータ
+    kv_sep=" | ",     # キー:値ペアの連結
+    kv_mid=": "       # キーと値の間
+):
+    """
+    要件:
+      - 氏名（フルネーム）列: 姓と名の間の空白（半角/全角/タブ）を除去
+      - 1行目はヘッダ
+      - Row-as-Doc: 各データ行を「キー:値の短い自然文」に整形
+      - 各行は改行を使わず結合し、ファイル全体で1つのドキュメント（JSONL 1行）にまとめる
+      - メタデータを付与（row_count, columns, primary_key, name_col_used, source, generated_at）
+    """
+    # エンコーディングのフォールバック
+    last_err = None
+    for enc in ("utf-8-sig", "utf-8", "cp932"):
+        try:
+            df = pd.read_csv(csv_path, encoding=enc)
+            break
+        except Exception as e:
+            last_err = e
+            df = None
+    if df is None:
+        raise RuntimeError(f"CSV読み込みに失敗: {csv_path}. 最後のエラー: {last_err}")
+
+    # 主キーはメタで記録（今回はRow-as-Docのみ）
+    primary_key_present = primary_key in df.columns
+
+    # 氏名列の空白除去（候補のうち最初に見つかった列のみ）
+    name_col_used = None
+    for col in name_cols:
+        if col in df.columns:
+            name_col_used = col
+            df[col] = df[col].astype(str).str.replace(r"[ \t\u3000]+", "", regex=True)
+            break
+
+    # 値の整形（改行除去・トリム）
+    def clean_val(v):
+        if pd.isna(v):
+            return ""
+        return str(v).replace("\r", " ").replace("\n", " ").strip()
+
+    columns = df.columns.tolist()
+
+    # 各行を「キー: 値」連結の1行テキストに
+    row_texts = []
+    for _, row in df.iterrows():
+        parts = []
+        for col in columns:
+            val = clean_val(row[col])
+            if not val:
+                continue
+            parts.append(f"{col}{kv_mid}{val}")
+        if parts:
+            row_texts.append(kv_sep.join(parts))
+
+    # 改行なしで全行を結合（視認性のため row_sep を使用）
+    big_text = row_sep.join(row_texts)
+
+    # JSONL 1行のオブジェクト
+    doc = {
+        "doc_type": "row_corpus",
+        "source": os.path.basename(csv_path),
+        "text": big_text,
+        "metadata": {
+            "row_count": len(df),
+            "columns": columns,
+            "primary_key": primary_key if primary_key_present else None,
+            "name_col_used": name_col_used,
+            "generated_at": datetime.utcnow().isoformat() + "Z"
+        }
+    }
+
+    # 出力（JSONL 1行）
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(doc, ensure_ascii=False))
+        f.write("\n")  # JSONLの規約上、1行末尾に改行のみ（本文には改行なし）
+
+    return {
+        "out_path": out_path,
+        "rows_joined": len(row_texts),
+        "name_col_used": name_col_used,
+        "primary_key_present": primary_key_present
+    }
+
+# 使い方例:
+# csv_to_single_jsonl_txt_with_name_fix("社員名簿.csv", "社員名簿_row_corpus_single.jsonl.txt")
+
+
+'''
 def csv_to_row_cell_txt_with_name_fix(
     csv_path: str,
     out_path: str,
@@ -409,7 +505,7 @@ def csv_to_row_cell_txt_with_name_fix(
 
 # 使い方例:
 # csv_to_row_cell_txt_with_name_fix("社員名簿.csv", "社員名簿_row_and_cell_namefixed.txt")
-
+'''
 
 '''
 def convert_csv_to_jsonl_txt(csv_path, out_path, important_cols=None, primary_key="社員ID"):
